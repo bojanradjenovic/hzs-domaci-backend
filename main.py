@@ -1,7 +1,10 @@
-from flask import Flask
+from flask import Flask, request
 from flask_sqlalchemy import SQLAlchemy
 import json
-
+import bcrypt
+import time
+import secrets
+from datetime import datetime
 # Otvori config.json fajl i ucitaj config
 with open("config.json") as config_file:
     config = json.load(config_file)
@@ -16,10 +19,11 @@ db = SQLAlchemy(app)
 
 # Model za korisnike
 class korisnici(db.Model):
-    id_korisnika = db.Column(db.Integer, primary_key=True)
-    korisnicko_ime = db.Column(db.String(255), nullable=False)
+    korisnicko_ime = db.Column(db.String(255), nullable=False, primary_key=True)
+    sifra = db.Column(db.LargeBinary, nullable=False)
     is_admin = db.Column(db.Boolean, nullable=False)
 
+#Model za lekcije
 class lekcija(db.Model):
     id_lekcije = db.Column(db.Integer, primary_key=True)
     naziv = db.Column(db.String(255), nullable=False)
@@ -27,9 +31,10 @@ class lekcija(db.Model):
     sadrzaj = db.Column(db.Text, nullable=False)
     glasovi = db.Column(db.Integer, nullable=False)
     prihvacena = db.Column(db.Boolean)
-    id_korisnika = db.Column(db.BigInteger, db.ForeignKey('korisnik.id_korisnika'), nullable=False)
+    korisnicko_ime = db.Column(db.String(255), db.ForeignKey('korisnik.korisnicko_ime'), nullable=False)
     id_oblasti = db.Column(db.BigInteger, db.ForeignKey('oblast.id_oblasti'), nullable=False)
 
+#Model za oblasti
 class oblast(db.Model):
     id_oblasti = db.Column(db.BigInteger, primary_key=True)
     naziv = db.Column(db.String, nullable=False)
@@ -37,10 +42,51 @@ class oblast(db.Model):
     id_predmeta = db.Column(db.Integer, db.ForeignKey('predmet.id_predmeta'), nullable=False)
     lekcije = db.relationship('lekcija', backref='oblast', lazy=True)
 
+#Model za predmete
 class predmet(db.Model):
     id_predmeta = db.Column(db.BigInteger, primary_key=True)
     naziv = db.Column(db.String, nullable=False)
     oblasti = db.relationship('oblast', backref='predmet', lazy=True)
+#Model za korisnici_tokens
+class korisnici_tokens(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    korisnicko_ime = db.Column(db.String(255), db.ForeignKey('korisnici.korisnicko_ime'), nullable=False)
+    token = db.Column(db.String(255), nullable=False)
+
+def proveriToken(token):
+    token = korisnici_tokens.query.filter_by(token=token).first()
+    if token:
+        return token.korisnicko_ime
+    return False
+
+@app.route('/registerKorisnik', methods=['POST'])
+def registerKorisnik():
+    korisnicko_ime = request.form['korisnicko_ime']
+    sifra = request.form['sifra']
+    postojeci_korisnik = korisnici.query.filter_by(korisnicko_ime=korisnicko_ime).first()
+    if postojeci_korisnik:
+        return f"Korisnik sa tim korisničkim imenom već postoji"
+    hashed_password = bcrypt.hashpw(sifra.encode('utf-8'), bcrypt.gensalt())
+    novi_korisnik = korisnici(korisnicko_ime=korisnicko_ime, is_admin=False, sifra=hashed_password)
+    db.session.add(novi_korisnik)
+    db.session.commit()
+    return f"Korisnik uspesno registrovan"
+
+@app.route('/loginKorisnik', methods=['POST'])
+def loginKorisnik():
+    korisnicko_ime = request.form['korisnicko_ime']
+    sifra = request.form['sifra']
+    korisnik = korisnici.query.filter_by(korisnicko_ime=korisnicko_ime).first()
+    if korisnik and bcrypt.checkpw(sifra.encode('utf-8'), korisnik.sifra):
+        token = secrets.token_hex(32)
+        novi_token = korisnici_tokens(korisnicko_ime=korisnicko_ime, token=token)
+        db.session.add(novi_token)
+        db.session.commit()
+        return novi_token.token
+    else:
+        time.sleep(2)
+        return f"Neuspesno logovanje"
+        
 
 @app.route('/getLekcije')
 def getLekcije():
@@ -49,9 +95,15 @@ def getLekcije():
 
 @app.route('/getKorisnici')
 def getKorisnici():
-    #dodati proveru autha, ovo je samo test
     svi_korisnici = korisnici.query.all()
     return f"Korisnici: {[korisnik.korisnicko_ime for korisnik in svi_korisnici]}, Admins: {[korisnik.korisnicko_ime for korisnik in svi_korisnici if korisnik.is_admin]}"
+@app.route('/tokenProvera')
+def tokenProvera():
+    token = request.args.get('token')
+    korisnik = proveriToken(token)
+    if korisnik:
+        return f"Korisnik: {korisnik}"
+    return "Nevalidan token"
 
 if __name__ == "__main__":
     app.run(debug=True)
