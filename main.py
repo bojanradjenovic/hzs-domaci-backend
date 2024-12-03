@@ -61,17 +61,17 @@ def proveriToken(token):
 
 @app.route('/registerKorisnik', methods=['POST'])
 def registerKorisnik():
+    #dodati proveru za sifru, tj. password requirements
     korisnicko_ime = request.form['korisnicko_ime']
     sifra = request.form['sifra']
     postojeci_korisnik = korisnici.query.filter_by(korisnicko_ime=korisnicko_ime).first()
     if postojeci_korisnik:
-        return f"Korisnik sa tim korisničkim imenom već postoji"
+        return json.dumps({"success": False, "message": "Korisnik sa tim korisnickim imenom vec postoji"})
     hashed_password = bcrypt.hashpw(sifra.encode('utf-8'), bcrypt.gensalt())
     novi_korisnik = korisnici(korisnicko_ime=korisnicko_ime, is_admin=False, sifra=hashed_password)
     db.session.add(novi_korisnik)
     db.session.commit()
-    return f"Korisnik uspesno registrovan"
-
+    return json.dumps({"success": True, "message": "Korisnik uspesno registrovan"})
 @app.route('/loginKorisnik', methods=['POST'])
 def loginKorisnik():
     korisnicko_ime = request.form['korisnicko_ime']
@@ -82,10 +82,10 @@ def loginKorisnik():
         novi_token = korisnici_tokens(korisnicko_ime=korisnicko_ime, token=token)
         db.session.add(novi_token)
         db.session.commit()
-        return novi_token.token
+        return json.dumps({"success": True, "token": novi_token.token})
     else:
         time.sleep(2)
-        return f"Neuspesno logovanje"
+        return json.dumps({"success": False, "message": "Pogresno korisnicko ime ili lozinka"})
 
 @app.route('/logoutKorisnik')
 def logoutKorisnik():
@@ -94,25 +94,30 @@ def logoutKorisnik():
     if token:
         db.session.delete(token)
         db.session.commit()
-        return "Uspesno izlogovan"
-    return "Neuspesno izlogovan"
+        return json.dumps({"success": True, "message": "Uspesno izlogovan"})
+    return json.dumps({"success": False, "message": "Neuspesno izlogovan"})
 
 @app.route('/getLekcije')
 def getLekcije():
+    #dodati da zapravo radi nesto
     sve_lekcije = lekcija.query.all()
     return f"lekcije: {[lekcija.id_korisnika for lekcija in sve_lekcije]}"
 
 @app.route('/getKorisnici')
 def getKorisnici():
+    #dodati auth da mogu samo admini da vide sve korisnike	
     svi_korisnici = korisnici.query.all()
-    return f"Korisnici: {[korisnik.korisnicko_ime for korisnik in svi_korisnici]}, Admins: {[korisnik.korisnicko_ime for korisnik in svi_korisnici if korisnik.is_admin]}"
+    return json.dumps({
+        "korisnici": [korisnik.korisnicko_ime for korisnik in svi_korisnici],
+        "admini": [korisnik.korisnicko_ime for korisnik in svi_korisnici if korisnik.is_admin]
+    })
 @app.route('/tokenProvera')
 def tokenProvera():
     token = request.args.get('token')
     korisnik = proveriToken(token)
     if korisnik:
-        return f"Korisnik: {korisnik}"
-    return "Nevalidan token"
+        return json.dumps({"success": True, "korisnik": korisnik})
+    return json.dumps({"success": False, "message": "Nevalidan token"})
 
 if __name__ == "__main__":
     app.run(debug=True)
