@@ -86,7 +86,16 @@ def loginKorisnik():
     else:
         time.sleep(2)
         return f"Neuspesno logovanje"
-        
+
+@app.route('/logoutKorisnik')
+def logoutKorisnik():
+    token = request.args.get('token')
+    token = korisnici_tokens.query.filter_by(token=token).first()
+    if token:
+        db.session.delete(token)
+        db.session.commit()
+        return "Uspesno izlogovan"
+    return "Neuspesno izlogovan"
 
 @app.route('/getLekcije')
 def getLekcije():
