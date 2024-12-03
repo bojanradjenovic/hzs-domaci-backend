@@ -63,6 +63,51 @@ def proveriToken(token):
         return token.korisnicko_ime
     return False
 
+@app.route('/napraviLekciju', methods=['POST'])
+def napraviLekciju():
+    id_lekcije = request.form['id_lekcije']
+    naziv = request.form['naziv']
+    opis = request.form['opis']
+    sadrzaj = request.form['sadrzaj']
+    glasovi = request.form['glasovi']
+    id_oblasti = request.form['id_oblasti']
+    korisnicko_ime = request.form['korisnicko_ime']
+    postojeca_lekcija = lekcija.query.filter_by(id_lekcije=id_lekcije).first()
+    if postojeca_lekcija:
+         return jsonify({"success": False, "message": "Lekcija sa tim id-em imenom vec postoji"}), 400
+    nova_lekcija = lekcija(
+        id_lekcije=id_lekcije,
+        naziv = naziv,
+        opis = opis,
+        sadrzaj = sadrzaj,
+        glasovi = glasovi,
+        id_oblasti = id_oblasti,
+        korisnicko_ime =korisnicko_ime
+    )
+    db.session.add(nova_lekcija)
+    db.session.commit()
+    return jsonify({"success": True, "message": "Lekcija uspesno kreirana"}), 201
+
+@app.route('/kreirajOblast', methods=['POST'])
+def kreirajOblast():
+    id_oblasti = request.form['id_oblasti']
+    naziv = request.form['naziv']
+    opis = request.form['opis']
+    id_predmeta = request.form['id_predmeta']
+    postojeca_oblast = oblast.query.filter_by(id_oblasti=id_oblasti).first()
+    if postojeca_oblast:
+        return jsonify({"success": False, "message": "Oblast sa tim id-em imenom vec postoji"}), 400
+    nova_oblast = oblast(
+        id_oblasti = id_oblasti,
+        naziv = naziv,
+        opis = opis,
+        id_predmeta = id_predmeta
+    )
+    db.session.add(nova_oblast)
+    db.session.commit()
+    return jsonify({"success": True, "message": "Oblast uspesno kreirana"}), 201
+
+
 @app.route('/registerKorisnik', methods=['POST'])
 def registerKorisnik():
     korisnicko_ime = request.form['korisnicko_ime']
