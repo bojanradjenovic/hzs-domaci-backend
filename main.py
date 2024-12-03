@@ -72,6 +72,7 @@ def registerKorisnik():
     db.session.add(novi_korisnik)
     db.session.commit()
     return json.dumps({"success": True, "message": "Korisnik uspesno registrovan"})
+
 @app.route('/loginKorisnik', methods=['POST'])
 def loginKorisnik():
     korisnicko_ime = request.form['korisnicko_ime']
@@ -101,7 +102,42 @@ def logoutKorisnik():
 def getLekcije():
     #dodati da zapravo radi nesto
     sve_lekcije = lekcija.query.all()
-    return f"lekcije: {[lekcija.id_korisnika for lekcija in sve_lekcije]}"
+    json_data = json.dumps([
+    {
+        "id_lekcije": lekcija.id_lekcije,
+        "naziv": lekcija.naziv,
+        "opis": lekcija.opis,
+        "sadrzaj": lekcija.sadrzaj,
+        "glasovi": lekcija.glasovi,
+        "id_oblasti": lekcija.id_oblasti,
+        "korisnicko_ime": lekcija.korisnicko_ime
+    } 
+    for lekcija in sve_lekcije
+    ])
+    return json_data
+
+@app.route('/getOblasti')
+def getOblasti():
+    sve_oblasti = oblast.query.all()
+    json_data = json.dumps([{
+        "id_oblasti": oblast.id_oblasti,
+        "naziv": oblast.naziv,
+        "opis": oblast.opis,
+        "id_predmeta": oblast.id_predmeta 
+    }
+    for oblast in sve_oblasti
+    ])
+    return json_data
+
+@app.route('/getPredmeti')
+def getPredmeti():
+    svi_predmeti = predmet.query.all()
+    json_data = json.dumps([{
+        "id_predmeta": predmet.id_predmeta,
+        "naziv": predmet.naziv
+    }for predmet in svi_predmeti
+    ])
+    return json_data
 
 @app.route('/getKorisnici')
 def getKorisnici():
@@ -111,6 +147,7 @@ def getKorisnici():
         "korisnici": [korisnik.korisnicko_ime for korisnik in svi_korisnici],
         "admini": [korisnik.korisnicko_ime for korisnik in svi_korisnici if korisnik.is_admin]
     })
+
 @app.route('/tokenProvera')
 def tokenProvera():
     token = request.args.get('token')
