@@ -1,16 +1,19 @@
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 import json
 import bcrypt
 import time
 import secrets
 from datetime import datetime
+from flask_cors import CORS
+
 # Otvori config.json fajl i ucitaj config
 with open("config.json") as config_file:
     config = json.load(config_file)
 
 app = Flask(__name__)
-
+# Cross origin resource sharing
+CORS(app)
 # Database konekcija
 app.config['SQLALCHEMY_DATABASE_URI'] = f"mariadb+mariadbconnector://{config['user']}:{config['password']}@{config['host']}/{config['database']}"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -23,7 +26,7 @@ class korisnici(db.Model):
     sifra = db.Column(db.LargeBinary, nullable=False)
     is_admin = db.Column(db.Boolean, nullable=False)
 
-#Model za lekcije
+# Model za lekcije
 class lekcija(db.Model):
     id_lekcije = db.Column(db.Integer, primary_key=True)
     naziv = db.Column(db.String(255), nullable=False)
@@ -31,10 +34,10 @@ class lekcija(db.Model):
     sadrzaj = db.Column(db.Text, nullable=False)
     glasovi = db.Column(db.Integer, nullable=False)
     prihvacena = db.Column(db.Boolean)
-    korisnicko_ime = db.Column(db.String(255), db.ForeignKey('korisnik.korisnicko_ime'), nullable=False)
+    korisnicko_ime = db.Column(db.String(255), db.ForeignKey('korisnici.korisnicko_ime'), nullable=False)
     id_oblasti = db.Column(db.BigInteger, db.ForeignKey('oblast.id_oblasti'), nullable=False)
 
-#Model za oblasti
+# Model za oblasti
 class oblast(db.Model):
     id_oblasti = db.Column(db.BigInteger, primary_key=True)
     naziv = db.Column(db.String, nullable=False)
@@ -42,12 +45,13 @@ class oblast(db.Model):
     id_predmeta = db.Column(db.Integer, db.ForeignKey('predmet.id_predmeta'), nullable=False)
     lekcije = db.relationship('lekcija', backref='oblast', lazy=True)
 
-#Model za predmete
+# Model za predmete
 class predmet(db.Model):
     id_predmeta = db.Column(db.BigInteger, primary_key=True)
     naziv = db.Column(db.String, nullable=False)
     oblasti = db.relationship('oblast', backref='predmet', lazy=True)
-#Model za korisnici_tokens
+
+# Model za korisnici_tokens
 class korisnici_tokens(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     korisnicko_ime = db.Column(db.String(255), db.ForeignKey('korisnici.korisnicko_ime'), nullable=False)
@@ -61,32 +65,39 @@ def proveriToken(token):
 
 @app.route('/registerKorisnik', methods=['POST'])
 def registerKorisnik():
-    #dodati proveru za sifru, tj. password requirements
     korisnicko_ime = request.form['korisnicko_ime']
     sifra = request.form['sifra']
     postojeci_korisnik = korisnici.query.filter_by(korisnicko_ime=korisnicko_ime).first()
     if postojeci_korisnik:
-        return json.dumps({"success": False, "message": "Korisnik sa tim korisnickim imenom vec postoji"})
+        return jsonify({"success": False, "message": "Korisnik sa tim korisnickim imenom vec postoji"}), 400
     hashed_password = bcrypt.hashpw(sifra.encode('utf-8'), bcrypt.gensalt())
     novi_korisnik = korisnici(korisnicko_ime=korisnicko_ime, is_admin=False, sifra=hashed_password)
     db.session.add(novi_korisnik)
     db.session.commit()
-    return json.dumps({"success": True, "message": "Korisnik uspesno registrovan"})
+    return jsonify({"success": True, "message": "Korisnik uspesno registrovan"}), 201
 
 @app.route('/loginKorisnik', methods=['POST'])
 def loginKorisnik():
-    korisnicko_ime = request.form['korisnicko_ime']
-    sifra = request.form['sifra']
-    korisnik = korisnici.query.filter_by(korisnicko_ime=korisnicko_ime).first()
-    if korisnik and bcrypt.checkpw(sifra.encode('utf-8'), korisnik.sifra):
-        token = secrets.token_hex(32)
-        novi_token = korisnici_tokens(korisnicko_ime=korisnicko_ime, token=token)
-        db.session.add(novi_token)
-        db.session.commit()
-        return json.dumps({"success": True, "token": novi_token.token})
-    else:
-        time.sleep(2)
-        return json.dumps({"success": False, "message": "Pogresno korisnicko ime ili lozinka"})
+    try:
+        korisnicko_ime = request.form.get('korisnicko_ime')
+        sifra = request.form.get('sifra')
+        
+        if not korisnicko_ime or not sifra:
+            return jsonify({"success": False, "message": "Nedostaju podaci"}), 400
+        
+        korisnik = korisnici.query.filter_by(korisnicko_ime=korisnicko_ime).first()
+        
+        if korisnik and bcrypt.checkpw(sifra.encode('utf-8'), korisnik.sifra):
+            token = secrets.token_hex(32)
+            novi_token = korisnici_tokens(korisnicko_ime=korisnicko_ime, token=token)
+            db.session.add(novi_token)
+            db.session.commit()
+            return jsonify({"success": True, "token": novi_token.token}), 200
+        else:
+            time.sleep(2) 
+            return jsonify({"success": False, "message": "Pogrešno korisničko ime ili šifra"}), 401
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
 
 @app.route('/logoutKorisnik')
 def logoutKorisnik():
@@ -95,15 +106,25 @@ def logoutKorisnik():
     if token:
         db.session.delete(token)
         db.session.commit()
-        return json.dumps({"success": True, "message": "Uspesno izlogovan"})
-    return json.dumps({"success": False, "message": "Neuspesno izlogovan"})
+        return jsonify({"success": True, "message": "Uspesno izlogovan"}), 200
+    return jsonify({"success": False, "message": "Neuspesno izlogovan"}), 400
 
 @app.route('/getLekcije')
 def getLekcije():
-    #dodati da zapravo radi nesto
-    sve_lekcije = lekcija.query.all()
-    json_data = json.dumps([
-    {
+    id_oblasti = request.args.get('id_oblasti')
+    if not id_oblasti:
+        return jsonify({"success": False, "message": "ID oblasti nije prosleđen"}), 400
+    try:
+        id_oblasti = int(id_oblasti)
+    except ValueError:
+        return jsonify({"success": False, "message": "ID oblasti mora biti ceo broj"}), 400
+    
+    sve_lekcije = lekcija.query.filter_by(id_oblasti=id_oblasti).all()
+    
+    if not sve_lekcije:
+        return jsonify({"success": False, "message": "Nema lekcija za ovu oblast"}), 404
+    
+    json_data = [{
         "id_lekcije": lekcija.id_lekcije,
         "naziv": lekcija.naziv,
         "opis": lekcija.opis,
@@ -111,50 +132,61 @@ def getLekcije():
         "glasovi": lekcija.glasovi,
         "id_oblasti": lekcija.id_oblasti,
         "korisnicko_ime": lekcija.korisnicko_ime
-    } 
-    for lekcija in sve_lekcije
-    ])
-    return json_data
+    } for lekcija in sve_lekcije]
+    
+    return jsonify(json_data), 200
 
 @app.route('/getOblasti')
 def getOblasti():
-    sve_oblasti = oblast.query.all()
-    json_data = json.dumps([{
-        "id_oblasti": oblast.id_oblasti,
-        "naziv": oblast.naziv,
-        "opis": oblast.opis,
-        "id_predmeta": oblast.id_predmeta 
-    }
-    for oblast in sve_oblasti
-    ])
-    return json_data
+    id_predmeta = request.args.get('id_predmeta')
+    
+    if not id_predmeta:
+        return jsonify({"success": False, "message": "ID predmeta nije prosleđen"}), 400
+
+    try:
+        id_predmeta = int(id_predmeta)
+    except ValueError:
+        return jsonify({"success": False, "message": "ID predmeta mora biti ceo broj"}), 400
+    
+    predmet_record = predmet.query.get(id_predmeta)
+    
+    if not predmet_record:
+        return jsonify({"success": False, "message": "Predmet nije pronađen"}), 404
+    
+    sve_oblasti = oblast.query.filter_by(id_predmeta=id_predmeta).all()
+    
+    json_data = [{
+        "id_oblasti": o.id_oblasti,
+        "naziv": o.naziv,
+        "opis": o.opis,
+    } for o in sve_oblasti]
+    
+    return jsonify(json_data), 200
 
 @app.route('/getPredmeti')
 def getPredmeti():
     svi_predmeti = predmet.query.all()
-    json_data = json.dumps([{
+    json_data = [{
         "id_predmeta": predmet.id_predmeta,
         "naziv": predmet.naziv
-    }for predmet in svi_predmeti
-    ])
-    return json_data
+    } for predmet in svi_predmeti]
+    return jsonify(json_data), 200
 
 @app.route('/getKorisnici')
 def getKorisnici():
-    #dodati auth da mogu samo admini da vide sve korisnike	
     svi_korisnici = korisnici.query.all()
-    return json.dumps({
+    return jsonify({
         "korisnici": [korisnik.korisnicko_ime for korisnik in svi_korisnici],
         "admini": [korisnik.korisnicko_ime for korisnik in svi_korisnici if korisnik.is_admin]
-    })
+    }), 200
 
 @app.route('/tokenProvera')
 def tokenProvera():
     token = request.args.get('token')
     korisnik = proveriToken(token)
     if korisnik:
-        return json.dumps({"success": True, "korisnik": korisnik})
-    return json.dumps({"success": False, "message": "Nevalidan token"})
+        return jsonify({"success": True, "korisnik": korisnik}), 200
+    return jsonify({"success": False, "message": "Nevalidan token"}), 401
 
 if __name__ == "__main__":
     app.run(debug=True)
