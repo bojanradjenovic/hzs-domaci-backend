@@ -1,5 +1,5 @@
 from flask import request, jsonify
-from models import lekcija, oblast, predmet, db
+from models import lekcija, oblast, predmet
 from routes.auth import proveriToken
 
 def init_content_routes(app):
@@ -23,8 +23,6 @@ def init_content_routes(app):
         
         sve_lekcije = lekcija.query.filter_by(id_oblasti=id_oblasti).all()
         
-        if not sve_lekcije:
-            return jsonify({"success": False, "message": "Nema lekcija za ovu oblast"}), 404
         
         json_data = [{
             "id_lekcije": lekcija.id_lekcije,
@@ -102,7 +100,7 @@ def init_content_routes(app):
         try:
             id_lekcije = int(id_lekcije)
         except ValueError:
-            return jsonify({"success": False, "message": "ID lekcije mora biti ceo broj"}), 400
+            return jsonify({"success": False, "message": f"ID lekcije mora biti ceo broj, {id_lekcije}"}), 400
         
         sve_lekcije = lekcija.query.filter_by(id_lekcije=id_lekcije).all()
         

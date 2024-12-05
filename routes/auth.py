@@ -62,6 +62,15 @@ def init_auth(app):
         if korisnik:
             return jsonify({"success": True, "korisnik": korisnik}), 200
         return jsonify({"success": False, "message": "Nevalidan token"}), 401
+    @app.route('/checkIfAdmin')
+    def checkIfAdminRoute():
+        token = request.headers.get('Authorization')
+        korisnik = proveriToken(token)
+        if korisnik:
+            if checkIfAdmin(korisnik):
+                return jsonify({"success": True, "message": "Korisnik je admin"}), 200
+            return jsonify({"success": False, "message": "Korisnik nije admin"}), 403
+        return jsonify({"success": False, "message": "Nevalidan token"}), 401
 def proveriToken(token):
     token = korisnici_tokens.query.filter_by(token=token).first()
     if token:

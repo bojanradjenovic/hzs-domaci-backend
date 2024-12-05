@@ -11,7 +11,6 @@ def init_modify_routes(app):
         korisnik = proveriToken(token)
         if not korisnik:
             return jsonify({"success": False, "message": "Nevalidan token"}), 401
-
         id_lekcije = request.form.get('id_lekcije')
         id_oblasti = request.form.get('id_oblasti')
         naziv = request.form.get('naziv')
