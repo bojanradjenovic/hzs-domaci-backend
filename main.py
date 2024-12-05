@@ -6,7 +6,7 @@ from routes.auth import init_auth
 from routes.content_routes import init_content_routes
 from routes.create_routes import init_create_routes
 from routes.modify_routes import init_modify_routes
-
+from routes.delete_routes import init_delete_routes
 # Otvori config.json fajl i ucitaj config
 with open("config.json") as config_file:
     config = json.load(config_file)
@@ -24,5 +24,7 @@ init_auth(app)
 init_content_routes(app)
 init_create_routes(app)
 init_modify_routes(app)
+init_delete_routes(app)
+
 if __name__ == "__main__":
-    app.run(debug=True, host="100.71.17.101")
+    app.run(debug=True)
