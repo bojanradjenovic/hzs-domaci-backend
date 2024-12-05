@@ -14,7 +14,6 @@ class lekcija(db.Model):
     naziv = db.Column(db.String(255), nullable=False)
     opis = db.Column(db.String(255), nullable=False)
     sadrzaj = db.Column(db.Text, nullable=False)
-    glasovi = db.Column(db.Integer, nullable=False)
     prihvacena = db.Column(db.Boolean)
     korisnicko_ime = db.Column(db.String(255), db.ForeignKey('korisnici.korisnicko_ime'), nullable=False)
     id_oblasti = db.Column(db.BigInteger, db.ForeignKey('oblast.id_oblasti'), nullable=False)

@@ -4,6 +4,7 @@ import bcrypt
 import time
 import secrets
 from sqlalchemy.exc import IntegrityError
+
 def init_auth(app):
     @app.route('/registerKorisnik', methods=['POST'])
     def registerKorisnik():
@@ -56,7 +57,7 @@ def init_auth(app):
 
     @app.route('/tokenProvera')
     def tokenProvera():
-        token = request.args.get('token')
+        token = request.headers.get('Authorization')
         korisnik = proveriToken(token)
         if korisnik:
             return jsonify({"success": True, "korisnik": korisnik}), 200
@@ -65,4 +66,9 @@ def proveriToken(token):
     token = korisnici_tokens.query.filter_by(token=token).first()
     if token:
         return token.korisnicko_ime
+    return False
+def checkIfAdmin(korisnicko_ime):
+    korisnik = korisnici.query.filter_by(korisnicko_ime=korisnicko_ime).first()
+    if korisnik.is_admin:
+        return True
     return False

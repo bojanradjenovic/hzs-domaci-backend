@@ -1,5 +1,5 @@
 from flask import request, jsonify
-from models import lekcija, oblast, predmet
+from models import lekcija, oblast, predmet, db
 from routes.auth import proveriToken
 
 def init_content_routes(app):
@@ -31,7 +31,6 @@ def init_content_routes(app):
             "naziv": lekcija.naziv,
             "opis": lekcija.opis,
             "sadrzaj": lekcija.sadrzaj,
-            "glasovi": lekcija.glasovi,
             "id_oblasti": lekcija.id_oblasti,
             "korisnicko_ime": lekcija.korisnicko_ime
         } for lekcija in sve_lekcije]
@@ -87,3 +86,36 @@ def init_content_routes(app):
             "naziv": predmet.naziv
         } for predmet in svi_predmeti]
         return jsonify({"success": True, "korisnicko_ime": korisnik, "predmeti": json_data}), 200
+    @app.route('/getLekcija')
+    def getLekcija():
+        token = request.headers.get('Authorization')
+        if not token:
+            return jsonify({"success": False, "message": "Token nije prosleđen"}), 401
+
+        korisnik = proveriToken(token)
+        if not korisnik:
+            return jsonify({"success": False, "message": "Nevalidan token"}), 401
+
+        id_lekcije = request.args.get('id_lekcije')
+        if not id_lekcije:
+            return jsonify({"success": False, "message": "ID lekcije nije prosleđen"}), 400
+        try:
+            id_lekcije = int(id_lekcije)
+        except ValueError:
+            return jsonify({"success": False, "message": "ID lekcije mora biti ceo broj"}), 400
+        
+        sve_lekcije = lekcija.query.filter_by(id_lekcije=id_lekcije).all()
+        
+        if not sve_lekcije:
+            return jsonify({"success": False, "message": "Ne postoji lekcija sa tim ID-em!"}), 404
+        
+        json_data = [{
+            "id_lekcije": lekcija.id_lekcije,
+            "naziv": lekcija.naziv,
+            "opis": lekcija.opis,
+            "sadrzaj": lekcija.sadrzaj,
+            "id_oblasti": lekcija.id_oblasti,
+            "korisnicko_ime": lekcija.korisnicko_ime
+        } for lekcija in sve_lekcije]
+        
+        return jsonify({"success": True, "korisnicko_ime": korisnik, "lekcija": json_data[0]}), 200
